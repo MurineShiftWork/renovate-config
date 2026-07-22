@@ -1,0 +1,80 @@
+name: CI (reusable)
+
+# Reusable CI: lint (pre-commit) + PR-only test matrix + an aggregate gate.
+# Callers: `uses: MurineShiftWork/renovate-config/.github/workflows/ci.yml@v1`.
+on:
+  workflow_call:
+    inputs:
+      python-versions:
+        description: JSON array of Python versions for the test matrix.
+        type: string
+        default: '["3.12", "3.13"]'
+      sync-extras:
+        description: Space-separated extras to sync before tests (e.g. "dev", "dev test").
+        type: string
+        default: dev
+      test-command:
+        description: Command that runs the test suite.
+        type: string
+        default: uv run pytest
+      lint:
+        description: Run the pre-commit lint job.
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  lint:
+    if: ${{ inputs.lint && !startsWith(github.event.head_commit.message, 'bump:') }}
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - name: Run pre-commit
+        run: uvx pre-commit run --all-files --show-diff-on-failure
+
+  test:
+    if: ${{ github.event_name == 'pull_request' && !startsWith(github.event.head_commit.message, 'bump:') }}
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ${{ fromJSON(inputs.python-versions) }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install
+        run: uv sync $(for e in ${{ inputs.sync-extras }}; do echo -n "--extra $e "; done)
+      - name: Test
+        run: ${{ inputs.test-command }}
+
+  ci:
+    name: CI
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    if: always()
+    steps:
+      - name: Check required jobs
+        run: |
+          if [[ "${{ needs.lint.result }}" != "success" && "${{ needs.lint.result }}" != "skipped" ]]; then
+            echo "lint failed" && exit 1
+          fi
+          if [[ "${{ needs.test.result }}" != "success" && "${{ needs.test.result }}" != "skipped" ]]; then
+            echo "test failed" && exit 1
+          fi
+          echo "All required checks passed."

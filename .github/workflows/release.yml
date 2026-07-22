@@ -1,0 +1,50 @@
+name: Release (reusable)
+
+# Reusable release: build + attach artifacts to a GitHub release; optional PyPI
+# publish via trusted publishing (OIDC). Caller (on push tags: ['v*'] + dispatch):
+#   jobs:
+#     release:
+#       uses: MurineShiftWork/renovate-config/.github/workflows/release.yml@v1
+#       with:
+#         pypi: true            # omit or false for internal GitHub-release-only repos
+#         tag: ${{ inputs.tag }}
+on:
+  workflow_call:
+    inputs:
+      pypi:
+        description: Publish to PyPI via trusted publishing (OIDC). False = GitHub release only.
+        type: boolean
+        default: false
+      tag:
+        description: Tag to publish (from a versioning dispatch); falls back to the pushed ref.
+        type: string
+        default: ''
+
+permissions:
+  contents: write
+  id-token: write  # PyPI trusted publishing
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  release:
+    name: Build and release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@v7
+      - name: Build
+        run: uv build
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          files: dist/*
+          generate_release_notes: false
+      - name: Publish to PyPI
+        if: ${{ inputs.pypi }}
+        run: uv publish --trusted-publishing automatic

@@ -1,0 +1,45 @@
+name: Versioning (reusable)
+
+# Reusable versioning: cz bump + tag on push to main, then dispatch the caller's
+# release.yml (a GITHUB_TOKEN-pushed tag cannot trigger release.yml's push:tags).
+# Caller (on push to main):
+#   jobs:
+#     version:
+#       uses: MurineShiftWork/renovate-config/.github/workflows/versioning.yml@v1
+on:
+  workflow_call:
+
+permissions:
+  contents: write
+  actions: write  # to dispatch release.yml
+
+jobs:
+  version:
+    name: Bump and tag
+    runs-on: ubuntu-latest
+    if: ${{ !startsWith(github.event.head_commit.message, 'bump:') }}
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+      - uses: astral-sh/setup-uv@v7
+      - name: Bump, tag, trigger release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          uvx --from commitizen cz bump --yes || EXIT=$?
+          if [ "${EXIT:-0}" -eq 21 ] || [ "${EXIT:-0}" -eq 6 ]; then
+            echo "No bumpable commits since last tag - nothing to do."
+            exit 0
+          fi
+          [ "${EXIT:-0}" -eq 0 ] || exit $EXIT
+          git push origin HEAD:main
+          VERSION="v$(cat VERSION)"
+          git push origin "$VERSION"
+          gh workflow run release.yml -f tag="$VERSION"
