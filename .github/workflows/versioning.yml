@@ -16,7 +16,7 @@ permissions:
 jobs:
   version:
     name: Bump and tag
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
     if: ${{ !startsWith(github.event.head_commit.message, 'bump:') }}
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
