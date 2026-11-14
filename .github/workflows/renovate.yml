@@ -6,12 +6,16 @@ name: Renovate (reusable)
 #     renovate:
 #       uses: MurineShiftWork/renovate-config/.github/workflows/renovate.yml@v1
 #       secrets:
-#         RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+#         CI_CLIENT_ID: ${{ secrets.MURINESHIFTWORK_CI_CLIENT_ID }}
+#         CI_PRIVATE_KEY: ${{ secrets.MURINESHIFTWORK_CI_PRIVATE_KEY }}
 on:
   workflow_call:
     secrets:
-      RENOVATE_TOKEN:
-        description: PAT with Contents + Pull requests + Workflows write on the calling repo. Its events trigger CI + versioning (GITHUB_TOKEN does not).
+      CI_CLIENT_ID:
+        description: Client ID of the CI GitHub App. Its PRs trigger CI + versioning (GITHUB_TOKEN's do not).
+        required: true
+      CI_PRIVATE_KEY:
+        description: Private key of the CI GitHub App.
         required: true
 
 permissions:
@@ -29,7 +33,12 @@ jobs:
     runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/create-github-app-token@v3
+        id: app-token
+        with:
+          client-id: ${{ secrets.CI_CLIENT_ID }}
+          private-key: ${{ secrets.CI_PRIVATE_KEY }}
       - uses: renovatebot/github-action@v46.1.17
         with:
           configurationFile: renovate.json
-          token: ${{ secrets.RENOVATE_TOKEN }}
+          token: ${{ steps.app-token.outputs.token }}

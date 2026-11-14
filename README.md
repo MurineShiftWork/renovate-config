@@ -23,8 +23,8 @@ Each repo keeps a one-line `renovate.json`:
 The policy: opens PRs only in the Monday-before-6am window, batches non-major MSW
 updates into one auto-merged PR (`rangeStrategy: bump` raises `>=` floors), waits a
 3-day stability window, keeps majors manual, and ignores everything outside the MSW
-ecosystem (third-party libs, GitHub Actions, the Python runtime). Auth is a
-`RENOVATE_TOKEN` PAT whose events trigger CI + versioning (the built-in token does not).
+ecosystem (third-party libs, GitHub Actions, the Python runtime). Auth is a token
+from the CI GitHub App, whose PRs trigger CI + versioning (the built-in token's do not).
 
 Per-repo caller `.github/workflows/renovate.yml`:
 
@@ -38,7 +38,8 @@ jobs:
   renovate:
     uses: MurineShiftWork/renovate-config/.github/workflows/renovate.yml@v1
     secrets:
-      RENOVATE_TOKEN: ${{ secrets.RENOVATE_TOKEN }}
+      CI_CLIENT_ID: ${{ secrets.MURINESHIFTWORK_CI_CLIENT_ID }}
+      CI_PRIVATE_KEY: ${{ secrets.MURINESHIFTWORK_CI_PRIVATE_KEY }}
 ```
 
 ---
@@ -93,8 +94,8 @@ jobs:
 
 ## Prerequisites per repo
 
-- `RENOVATE_TOKEN` secret (org secret with ALL visibility covers the fleet): a
-  fine-grained PAT with Contents + Pull requests + Workflows write.
+- The CI App's client ID and private key as secrets; the App needs Contents, Pull requests,
+  Workflows and Commit statuses write on the repo.
 - For PyPI repos: trusted publishing configured on PyPI (no secret needed; OIDC).
 - Repos that push directly to `main` from versioning must NOT have a required-status-check
   branch protection, or the bot push is blocked.
